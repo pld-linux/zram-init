@@ -7,6 +7,7 @@ Group:		Applications
 Source0:	https://github.com/vaeth/zram-init/archive/v%{version}/%{name}-%{version}.tar.gz
 # Source0-md5:	ad15fe6ca3b08db4953805f88014ff0d
 URL:		https://github.com/vaeth/zram-init/
+BuildRequires:	rpmbuild(macros) >= 1.644
 BuildArch:	noarch
 BuildRoot:	%{tmpdir}/%{name}-%{version}-root-%(id -u -n)
 
