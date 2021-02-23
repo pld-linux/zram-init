@@ -1,7 +1,7 @@
 Summary:	A wrapper script for the zram linux kernel module
 Name:		zram-init
 Version:	10.10
-Release:	1
+Release:	2
 License:	GPL v2
 Group:		Applications
 Source0:	https://github.com/vaeth/zram-init/archive/v%{version}/%{name}-%{version}.tar.gz
