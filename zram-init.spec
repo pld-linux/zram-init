@@ -1,11 +1,11 @@
 Summary:	A wrapper script for the zram linux kernel module
 Name:		zram-init
-Version:	10.11
+Version:	10.12
 Release:	1
 License:	GPL v2
 Group:		Applications
 Source0:	https://github.com/vaeth/zram-init/archive/v%{version}/%{name}-%{version}.tar.gz
-# Source0-md5:	1ace148146a33310817a140075d1805f
+# Source0-md5:	0927cd3f6e3da512257aecf6a610999f
 URL:		https://github.com/vaeth/zram-init/
 BuildRequires:	rpmbuild(macros) >= 1.644
 BuildArch:	noarch
