@@ -1,7 +1,7 @@
 Summary:	A wrapper script for the zram linux kernel module
 Name:		zram-init
 Version:	11.0
-Release:	1
+Release:	2
 License:	GPL v2
 Group:		Applications
 Source0:	https://github.com/vaeth/zram-init/archive/v%{version}/%{name}-%{version}.tar.gz
@@ -63,7 +63,7 @@ rm -rf $RPM_BUILD_ROOT
 %defattr(644,root,root,755)
 %doc AUTHORS ChangeLog README.md
 %attr(755,root,root) /sbin/zram-init
-/etc/modprobe.d/zram.conf
+%config(noreplace) %verify(not md5 mtime size) /etc/modprobe.d/zram.conf
 %{systemdunitdir}/zram_btrfs.service
 %{systemdunitdir}/zram_swap.service
 %{systemdunitdir}/zram_tmp.service
