@@ -1,0 +1,260 @@
+#!/bin/sh
+#
+# zram-init	Set up zRAM block devices as swap and/or filesystems
+#
+# chkconfig:	- 01 99
+#
+# description:	Compressed block devices in RAM, used as swap or carrying \
+#		a filesystem, as configured in /etc/sysconfig/zram-init.
+#
+# config:	/etc/sysconfig/zram-init
+#
+
+# Source function library
+. /etc/rc.d/init.d/functions
+
+# Get service config - may override defaults
+[ -f /etc/sysconfig/zram-init ] && . /etc/sysconfig/zram-init
+
+: ${num_devices:=0}
+
+case "$num_devices" in
+*[!0-9]*)
+	nls "Invalid num_devices in %s: %s" "/etc/sysconfig/zram-init" "$num_devices" >&2
+	exit 6
+	;;
+esac
+
+if [ "$num_devices" -eq 0 ]; then
+	case "$1" in
+	start|stop|restart|try-restart|force-reload)
+		exit 0
+		;;
+	esac
+fi
+
+# Load the settings of device $1 into unnumbered variables. Returns non-zero
+# for a device the admin left unconfigured, which the callers skip.
+zram_getconf() {
+	eval "fstype=\${type$1-}	size=\${size$1-}
+		mlim=\${mlim$1-}	back=\${back$1-}
+		icmp=\${icmp$1-}	idle=\${idle$1-}
+		wlim=\${wlim$1-}	algo=\${algo$1-}
+		para=\${para$1-}	flag=\${flag$1-}
+		blck=\${blck$1-}	irat=\${irat$1-}
+		inod=\${inod$1-}	owgr=\${owgr$1-}
+		mode=\${mode$1-}	labl=\${labl$1-}
+		uuid=\${uuid$1-}	opts=\${opts$1-}
+		notr=\${notr$1-}	args=\${args$1-}"
+
+	case "$fstype" in
+	swap|-|/*)
+		;;
+	*)
+		return 1
+		;;
+	esac
+
+	case "$size" in
+	''|0|*[!0-9]*)
+		return 1
+		;;
+	esac
+}
+
+zram_start_dev() {
+	local dev="$1" rc
+
+	set -- -d "$dev" -D "$num_devices" \
+		${mlim:+-S "$mlim"} ${back:+-b "$back"} \
+		${icmp:+-I} ${idle:+-w} ${wlim:+-W "$wlim"} \
+		${algo:+-a "$algo"} ${para:+-A "$para"} \
+		${labl:+-L "$labl"} ${uuid:+-U "$uuid"} ${notr:+-T} \
+		${blck:+-B "$blck"} ${irat:+-i "$irat"} ${inod:+-N "$inod"}
+	# args* may carry several quoted arguments, so it has to be re-parsed
+	[ -z "${args:++}" ] || eval 'set -- "$@" '"$args"
+
+	case "$fstype" in
+	swap)
+		show "Setting up zram%s as swap (%s MB)" "$dev" "$size"
+		busy
+		/sbin/zram-init ${flag:+-p "$flag"} "$@" -- "$size"
+		rc=$?
+		;;
+	-)
+		show "Setting up zram%s as %s (%s MB)" "$dev" "${flag:-ext4}" "$size"
+		busy
+		/sbin/zram-init ${flag:+-t "$flag"} "$@" -- "$size" -
+		rc=$?
+		;;
+	*)
+		show "Mounting zram%s on %s (%s MB, %s)" "$dev" "$fstype" "$size" "${flag:-ext4}"
+		busy
+		/sbin/zram-init ${flag:+-t "$flag"} \
+			${opts:+-o "$opts"} ${owgr:+-c "$owgr"} ${mode:+-m "$mode"} \
+			"$@" -- "$size" "$fstype"
+		rc=$?
+		;;
+	esac
+
+	[ $rc -eq 0 ] && ok || fail
+	return $rc
+}
+
+zram_stop_dev() {
+	local dev="$1" rc
+
+	case "$fstype" in
+	swap)
+		show "Removing swap on zram%s" "$dev"
+		busy
+		/sbin/zram-init -d "$dev" -- 0
+		rc=$?
+		;;
+	-)
+		show "Removing zram%s" "$dev"
+		busy
+		/sbin/zram-init -d "$dev" -- 0 -
+		rc=$?
+		;;
+	*)
+		show "Unmounting zram%s from %s" "$dev" "$fstype"
+		busy
+		/sbin/zram-init -d "$dev" -- 0 "$fstype"
+		rc=$?
+		;;
+	esac
+
+	[ $rc -eq 0 ] && ok || fail
+	return $rc
+}
+
+start() {
+	local i started
+
+	if [ -f /var/lock/subsys/zram-init ]; then
+		msg_already_running "zram-init"
+		return
+	fi
+
+	if is_yes "$load_on_start"; then
+		show "Loading zram kernel module"
+		busy
+		if /sbin/modprobe zram num_devices="$num_devices"; then
+			ok
+		else
+			fail
+			RETVAL=1
+			return
+		fi
+	fi
+
+	i=0
+	started=0
+	while [ $i -lt "$num_devices" ]; do
+		if zram_getconf $i; then
+			if zram_start_dev $i; then
+				started=1
+			else
+				RETVAL=1
+			fi
+		fi
+		i=$((i + 1))
+	done
+
+	# a device that came up has to be reachable by stop even when another
+	# one failed, or it stays allocated until reboot
+	[ $started -eq 0 ] || touch /var/lock/subsys/zram-init
+}
+
+stop() {
+	local i
+
+	if [ ! -f /var/lock/subsys/zram-init ]; then
+		msg_not_running "zram-init"
+		return
+	fi
+
+	# tear down in reverse order: a later device may be mounted below an
+	# earlier one
+	i="$num_devices"
+	while [ $i -gt 0 ]; do
+		i=$((i - 1))
+		if zram_getconf $i; then
+			zram_stop_dev $i || RETVAL=1
+		fi
+	done
+
+	if is_yes "$unload_on_stop"; then
+		show "Unloading zram kernel module"
+		busy
+		/sbin/modprobe -r zram && ok || fail
+	fi
+
+	rm -f /var/lock/subsys/zram-init
+}
+
+condrestart() {
+	if [ ! -f /var/lock/subsys/zram-init ]; then
+		msg_not_running "zram-init"
+		RETVAL=$1
+		return
+	fi
+
+	stop
+	start
+}
+
+status() {
+	local i
+
+	if [ ! -f /var/lock/subsys/zram-init ]; then
+		msg_not_running "zram-init"
+		return 3
+	fi
+
+	i=0
+	while [ $i -lt "$num_devices" ]; do
+		if zram_getconf $i; then
+			if [ -b "/dev/zram$i" ]; then
+				nls "zram%s: %s, %s MB" "$i" "$fstype" "$size"
+			else
+				nls "zram%s: %s, %s MB (device missing)" "$i" "$fstype" "$size"
+			fi
+		fi
+		i=$((i + 1))
+	done
+
+	[ ! -x /sbin/zramctl ] || /sbin/zramctl
+	return 0
+}
+
+RETVAL=0
+# See how we were called.
+case "$1" in
+  start)
+	start
+	;;
+  stop)
+	stop
+	;;
+  restart)
+	stop
+	start
+	;;
+  try-restart)
+	condrestart 0
+	;;
+  force-reload)
+	condrestart 7
+	;;
+  status)
+	status
+	RETVAL=$?
+	;;
+  *)
+	msg_usage "$0 {start|stop|restart|try-restart|force-reload|status}"
+	exit 3
+esac
+
+exit $RETVAL

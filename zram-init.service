@@ -1,0 +1,16 @@
+[Unit]
+Description=zRAM swap and filesystems
+Documentation=man:zram-init(8)
+DefaultDependencies=no
+Conflicts=umount.target
+Before=swap.target local-fs.target umount.target
+ConditionPathExists=/etc/sysconfig/zram-init
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/etc/rc.d/init.d/zram-init start
+ExecStop=/etc/rc.d/init.d/zram-init stop
+
+[Install]
+WantedBy=local-fs-pre.target

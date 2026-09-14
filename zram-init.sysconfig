@@ -1,0 +1,87 @@
+# /etc/sysconfig/zram-init - zRAM devices set up by /etc/rc.d/init.d/zram-init
+# and by zram-init.service.
+#
+# The service is not enabled by default. Enable it with:
+#	chkconfig zram-init on		(rc-scripts)
+#	systemctl enable zram-init	(systemd)
+#
+# This package also ships the upstream example units zram_swap.service,
+# zram_tmp.service, zram_var_tmp.service and zram_btrfs.service, which carry
+# their sizes hardcoded in ExecStart and ignore this file. Do not enable them
+# together with zram-init.service: both would claim the same /dev/zram* and
+# the second one to start would fail.
+#
+# See zram-init(8) for the meaning of the underlying options.
+
+# Load the zram kernel module on start. zram-init loads it on its own when a
+# device node is missing, so this only matters if you want the module present
+# before the first device is set up.
+load_on_start=yes
+
+# Unload the zram kernel module on stop.
+unload_on_stop=yes
+
+# How many devices to configure. Only the variables numbered
+# 0 ... num_devices-1 below are used. This count is also passed to modprobe,
+# so it overrides num_devices= from /etc/modprobe.d/zram.conf.
+num_devices=1
+
+# Per-device settings. Replace N with the device number (0, 1, 2, ...):
+#
+# typeN  "swap"  use /dev/zramN as swap
+#        "/dir"  create a filesystem on /dev/zramN and mount it on /dir
+#        "-"     create the filesystem but do not mount it
+#        A device with any other type, or with sizeN empty or 0, is skipped.
+# sizeN  maximal size in MB (uncompressed); this is the only required setting
+# flagN  for type swap: the swap priority (16383 if empty, "-" for the
+#        kernel default of -1); otherwise the filesystem type
+#        (ext2, ext4, btrfs or xfs; ext4 if empty). Anything other than swap
+#        needs the matching mkfs: e2fsprogs, btrfs-progs or xfsprogs.
+# algoN  compression algorithm: zstd, lz4 or lzo.
+#        Ratio: zstd > lzo > lz4. Speed: lz4 > zstd > lzo.
+# paraN  algorithm parameters, e.g. "level=3" (needs util-linux >= 2.41)
+# mlimN  hard limit in MB on the uncompressed memory the device may use
+# lablN  filesystem/swap label
+# uuidN  force this UUID instead of a generated one
+# notrN  nonempty disables discard (TRIM); wastes memory, only useful on
+#        linux-3.14 and earlier
+# backN  backing device for pages zram cannot keep in RAM
+# icmpN  nonempty writes incompressible pages to backN
+# idleN  nonempty writes idle pages to backN
+# wlimN  writeback_limit for idle pages, in units of 4kB (implies idleN)
+# argsN  extra arguments passed to zram-init; eval'd, so quote accordingly
+#
+# Ignored for type swap:
+# optsN  mount options
+# modeN  chmod the mount point to this mode after mounting
+# owgrN  chown the mount point to OWNER or OWNER:GROUP after mounting
+# blckN  block size for ext2/ext4 (1024, 2048 or 4096)
+# iratN  bytes/inode ratio for ext2/ext4
+# inodN  inode count for ext2/ext4
+
+# swap on /dev/zram0, sized at half of the physical memory
+type0=swap
+size0=$(awk '/^MemTotal:/ {print int($2 / 2048)}' /proc/meminfo)
+algo0=zstd
+labl0=zram_swap
+flag0=		# the default priority of 16383 is what you want for zram swap
+
+# /tmp on /dev/zram1. Under systemd, mask tmp.mount before enabling this.
+# Raise num_devices above to 2 to activate it.
+#type1=/tmp
+#size1=2048
+#flag1=ext4
+#algo1=zstd
+#para1=level=3
+#opts1=strictatime,nosuid,nodev,noexec
+#mode1=1777
+#labl1=tmp_dir
+
+# /var/tmp on /dev/zram2. Raise num_devices above to 3 to activate it.
+#type2=/var/tmp
+#size2=1024
+#flag2=ext2
+#algo2=zstd
+#opts2=relatime
+#mode2=1777
+#labl2=var_tmp_dir
