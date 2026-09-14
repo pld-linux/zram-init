@@ -59,7 +59,10 @@ num_devices=1
 # iratN  bytes/inode ratio for ext2/ext4
 # inodN  inode count for ext2/ext4
 
-# swap on /dev/zram0, sized at half of the physical memory
+# swap on /dev/zram0, sized at half of the physical memory. That is a sane
+# starting point, not a tuned value: on a machine with a lot of RAM a fixed
+# size is usually the better answer, and mlim0 caps how much RAM the
+# compressed pages may take regardless of size0.
 type0=swap
 size0=$(awk '/^MemTotal:/ {print int($2 / 2048)}' /proc/meminfo)
 algo0=zstd

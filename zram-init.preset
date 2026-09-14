@@ -1,0 +1,7 @@
+# zram swap changes how the machine manages memory, so the package does not
+# turn it on by itself; the SysV side is off by default too (chkconfig: -).
+# Preset files are applied in lexicographic order of their filename across
+# all preset directories, so to enable it on install either drop
+# "enable zram-init.service" into a file in /etc/systemd/system-preset/
+# bearing this very name, or into one sorting before it.
+disable zram-init.service

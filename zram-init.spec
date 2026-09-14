@@ -9,12 +9,13 @@ Source0:	https://github.com/vaeth/zram-init/archive/v%{version}/%{name}-%{versio
 Source1:	%{name}.init
 Source2:	%{name}.sysconfig
 Source3:	%{name}.service
+Source4:	%{name}.preset
 URL:		https://github.com/vaeth/zram-init/
 BuildRequires:	gettext-tools
 BuildRequires:	rpmbuild(macros) >= 1.644
 Requires(post,preun):	/sbin/chkconfig
 Requires(post,preun,postun):	systemd-units
-Requires:	module-init-tools
+Requires:	kmod
 Requires:	rc-scripts
 Requires:	systemd-units
 Requires:	util-linux
@@ -51,7 +52,8 @@ SHEBANG='#!%{__sh}' \
 
 %install
 rm -rf $RPM_BUILD_ROOT
-install -d $RPM_BUILD_ROOT/etc/{rc.d/init.d,sysconfig}
+install -d $RPM_BUILD_ROOT/etc/{rc.d/init.d,sysconfig} \
+	$RPM_BUILD_ROOT/lib/systemd/system-preset
 
 %{__make} install \
 	BINDIR=$RPM_BUILD_ROOT/sbin \
@@ -70,6 +72,7 @@ install -d $RPM_BUILD_ROOT/etc/{rc.d/init.d,sysconfig}
 install -p %{SOURCE1} $RPM_BUILD_ROOT/etc/rc.d/init.d/%{name}
 cp -p %{SOURCE2} $RPM_BUILD_ROOT/etc/sysconfig/%{name}
 cp -p %{SOURCE3} $RPM_BUILD_ROOT%{systemdunitdir}/%{name}.service
+cp -p %{SOURCE4} $RPM_BUILD_ROOT/lib/systemd/system-preset/90-%{name}.preset
 
 %find_lang %{name}
 
@@ -78,7 +81,7 @@ rm -rf $RPM_BUILD_ROOT
 
 %post
 /sbin/chkconfig --add %{name}
-%systemd_reload
+%systemd_post %{name}.service
 
 %preun
 if [ "$1" = "0" ]; then
@@ -98,6 +101,7 @@ fi
 %config(noreplace) %verify(not md5 mtime size) /etc/modprobe.d/zram.conf
 %config(noreplace) %verify(not md5 mtime size) /etc/sysconfig/%{name}
 %{systemdunitdir}/%{name}.service
+/lib/systemd/system-preset/90-%{name}.preset
 %{systemdunitdir}/zram_btrfs.service
 %{systemdunitdir}/zram_swap.service
 %{systemdunitdir}/zram_tmp.service

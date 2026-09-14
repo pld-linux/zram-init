@@ -137,11 +137,14 @@ start() {
 		return
 	fi
 
+	started=0
+
 	if is_yes "$load_on_start"; then
 		show "Loading zram kernel module"
 		busy
 		if /sbin/modprobe zram num_devices="$num_devices"; then
 			ok
+			started=1
 		else
 			fail
 			RETVAL=1
@@ -150,7 +153,6 @@ start() {
 	fi
 
 	i=0
-	started=0
 	while [ $i -lt "$num_devices" ]; do
 		if zram_getconf $i; then
 			if zram_start_dev $i; then
@@ -162,8 +164,8 @@ start() {
 		i=$((i + 1))
 	done
 
-	# a device that came up has to be reachable by stop even when another
-	# one failed, or it stays allocated until reboot
+	# the lock means stop has state to undo - a loaded module, or a device
+	# that came up - so it is taken even when another device failed
 	[ $started -eq 0 ] || touch /var/lock/subsys/zram-init
 }
 
